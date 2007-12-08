@@ -12,11 +12,11 @@ Find::Lib - Helper to find libs to use in the filesystem tree
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
-$VERSION = '0.01';
+$VERSION = '0.02';
 
 =head1 SYNOPSIS
 
@@ -24,14 +24,14 @@ $VERSION = '0.01';
     use strict;
 
     ## simple usage
-    use base Find::Lib '../mylib' => 'My::BootStrap';
+    use Find::Lib '../mylib' => 'My::BootStrap';
 
     ## pass import parameters to your Bootstrap module
-    use base Find::Lib '../mylib' => 'My::Bootstrap', test => 1, dbi => 'sqlite';
+    use Find::Lib '../mylib' => 'My::Bootstrap', test => 1, dbi => 'sqlite';
 
     ## If you like verbose or if you don't have a Bootstrap module
     use Find::Lib libs => [ 'lib', '../lib', 'devlib' ], 
-                  pkgs => { 'Test::More' => [ tests => 10 ], 
+                  pkgs => { 'My::Test'   => [ tests => 10 ], 
                             'My::Module' => [ ],
                   }; 
 
@@ -46,7 +46,7 @@ The purpose of this module is to replace
 with something shorter. This is specially useful if your project has a lot of scripts
 (For instance tests scripts).
 
-    use base Find::Lib '../bootstrap/lib' => 'My::Bootstrap', %param;
+    use Find::Lib '../bootstrap/lib' => 'My::Bootstrap', %param;
 
 does exactly that without using L<FindBin> module.
 
@@ -74,7 +74,7 @@ As soon as L<Find::Lib> is compiled it saves the location of the script and the 
 cwd (current working directory), which are the two pieces of information the module
 relies on to interpret the relative path given by the calling program.
 
-If cwd or $0 is changed before Find::Lib has a change to do its job, then Find::Lib
+If cwd or $0 is changed before Find::Lib has a chance to do its job, then Find::Lib
 will most probably die, saying "The script cannot be found". I don't know a workaround 
 that. So be sure to load Find::Lib as soon as possible in your script to minimize 
 problems (you are in control!).
@@ -117,16 +117,19 @@ sub import {
     my $class = shift;
     return unless @_;
     my %param;
-    if ($_[0] ne 'libs' and $_[0] ne 'pkgs') {
+
+    if ( ( $_[0] eq 'libs' or $_[0] eq 'pkgs' )
+        and ref $_[1] && ref $_[1] ne 'SCALAR' ) {
+
+        %param = @_;
+    }
+    else {
         ## enters simple bootstrap mode:
         ## 'libpath' => 'bootstrap package' => @arguments
         $param{libs} = [ $_[0] ];
-        if ($_[1]) {
-            $param{pkgs}  = { $_[1] => [ splice @_, 2 ] }
+        if ( $_[1] ) {
+            $param{pkgs} = { $_[1] => [ splice @_, 2 ] };
         }
-    }
-    else {
-        %param = @_;
     }
     Carp::croak("The script cannot be found") unless -e $Script;
 
