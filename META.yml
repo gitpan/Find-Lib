@@ -1,15 +1,12 @@
---- #YAML:1.0
-name:                Find-Lib
-version:             0.02
-abstract:            Helper to find libs to use in the filesystem tree
-license:             ~
-author:              
-    - Yann Kerherve <yannk@cpan.org>
-generated_by:        ExtUtils::MakeMaker version 6.40
-distribution_type:   module
-requires:     
+# http://module-build.sourceforge.net/META-spec.html
+#XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
+name:         Find-Lib
+version:      0.03
+version_from: lib/Find/Lib.pm
+installdirs:  site
+requires:
     File::Spec:                    0
     Test::More:                    0
-meta-spec:
-    url:     http://module-build.sourceforge.net/META-spec-v1.3.html
-    version: 1.3
+
+distribution_type: module
+generated_by: ExtUtils::MakeMaker version 6.30
