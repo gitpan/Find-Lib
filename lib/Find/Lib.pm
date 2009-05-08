@@ -17,7 +17,7 @@ Version 0.02
 
 =cut
 
-$VERSION = '0.04';
+$VERSION = '0.05';
 
 =head1 SYNOPSIS
 
@@ -211,7 +211,7 @@ sub import {
 
 =head1 SEE ALSO
 
-L<FindBin>, L<FindBin::libs>, L<lib>, L<require>, L<use>
+L<FindBin>, L<FindBin::libs>, L<lib>, L<rlib>, L<local::lib>
 
 =head1 AUTHOR
 
