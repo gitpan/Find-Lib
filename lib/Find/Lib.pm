@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use lib;
 
-use File::Spec::Functions qw( catpath splitpath rel2abs catdir splitdir );
+use File::Spec::Functions qw( catpath splitpath rel2abs splitdir );
 use vars qw/$Base $VERSION @base/;
 use vars qw/$Script/; # compat
 
@@ -13,11 +13,11 @@ Find::Lib - Helper to smartly find libs to use in the filesystem tree
 
 =head1 VERSION
 
-Version 0.02
+Version 1.0
 
 =cut
 
-$VERSION = '0.06';
+$VERSION = '0.99_01';
 
 =head1 SYNOPSIS
 
@@ -27,16 +27,19 @@ $VERSION = '0.06';
     ## simple usage
     use Find::Lib '../mylib';
 
-    ## with a Bootstap module
-    use Find::Lib '../mylib' => 'My::Bootstrap';
+    ## more libraries
+    use Find::Lib '../mylib', 'local-lib';
 
-    ## pass import parameters to your Bootstrap module
-    use Find::Lib '../mylib' => 'My::Bootstrap', test => 1, dbi => 'sqlite';
-
-    ## If you like verbose, or if you don't have a Bootstrap module
+    ## More verbose and backward compatible with Find::Lib < 1.0
     use Find::Lib libs => [ 'lib', '../lib', 'devlib' ];
-    use My::Test tests => 10;
-    use My::Module;
+
+    ## resolve some path with minimum typing
+    $dir  = Find::Lib->catdir("..", "data");
+    $path = Find::Lib->catfile("..", "data", "test.yaml");
+
+    $base = Find::Lib->base;
+    # or
+    $base = Find::Lib::Base;
 
 =head1 DESCRIPTION
 
@@ -44,24 +47,33 @@ The purpose of this module is to replace
 
     use FindBin;
     use lib "$FindBin::Bin/../bootstrap/lib";
-    use My::Bootstrap %param;
 
 with something shorter. This is specially useful if your project has a lot
 of scripts (For instance tests scripts).
 
-    use Find::Lib '../bootstrap/lib' => 'My::Bootstrap', %param;
+    use Find::Lib '../bootstrap/lib';
 
-does exactly that without using L<FindBin> module, and has the important
-propriety to do what you mean regarding symlinks and '..'.
+The important differences between L<FindBin> and L<Find::Lib> are:
 
-Note that the role of a Bootstrap module is actually to install more
-library paths in C<@INC> and to use more modules necessary to your application.
-It keeps your scripts nice and clean.
+=over 4
 
-On the other hand, if you don't want/need/have a Bootstrap module, you can
-still use L<Find::Lib> to automatically identify the relative locations of
-your libraries and add them to your C<@INC>; just use the expanded version
-as seen in the SYNOPSIS.
+=item * symlinks and '..'
+
+If you have symlinks in your path it respects them, so basically you can forget
+you have symlinks, because Find::Lib will do the natural thing (NOT ignore
+them), and resolve '..' correctly. L<FindBin> breaks if you do:
+
+    use lib "$Bin/../lib";
+
+and you currently are in a symlinked directory, because $Bin resolved to the
+filesystem path (without the symlink) and not the shell path.
+
+=item * convenience
+
+it's faster too type, and more intuitive (Exporting C<$Bin> always
+felt weird to me).
+
+=back
 
 =head1 DISCUSSION
 
@@ -95,26 +107,12 @@ the system process-list (C<ps> on unix).
 
 =head2 import
 
-All the work is done in import. So you need to 'use Find::Lib' and pass
-arguments to it.
+All the work is done in import. So you need to C<'use Find::Lib'> and pass
+a list of paths to add to @INC. See L<BACKWARD COMPATIBILITY> section for
+more retails on this topic.
 
-Recognized arguments are:
-
-=over 4
-
-=item C<libs>, a reference to a list of path to add to C<@INC>. The paths given
-are (should) be relative to the location of the current script. The paths won't
-be added unless the path actually exists on disk
-
-=item C<pkgs>, a reference to a hash containing package name as keys and
-arrayref of arguments (to import) as values. This is not really useful in
-itself, you'd better specify 'libs' in the import arguments and then use
-on seperate lines after it.
-
-=back
-
-The short forms implies that the first argument passed to import is not C<libs>
-or C<pkgs>. An example of usage is given in the SYNOPSIS section.
+The paths given are (should) be relative to the location of the current script.
+The paths won't be added unless the path actually exists on disk
 
 =cut
 
@@ -139,7 +137,7 @@ sub guess_shell_path {
     ## a clean base is also important for the pop business below
     #@base = grep { $_ && $_ ne '.' } shell_resolve(\@base, \@zero);
     @base = shell_resolve(\@base, \@zero);
-    return catpath( $volume, (catdir @base), '' );
+    return catpath( $volume, (File::Spec->catdir( @base )), '' );
 }
 
 ## naive method, but really DWIM from a developer perspective
@@ -165,53 +163,92 @@ sub guess_system_path {
 sub import {
     my $class = shift;
     return unless @_;
-    my %param;
 
     Carp::croak("The script/base dir cannot be found") unless -e $Base;
 
-    if ( ( $_[0] eq 'libs' or $_[0] eq 'pkgs' )
-        and ref $_[1] && ref $_[1] ne 'SCALAR' ) {
+    my @libs;
 
-        %param = @_;
-    }
-    else {
-        ## enters simple bootstrap mode:
-        ## 'libpath' => 'bootstrap package' => @arguments
-        $param{libs} = [ $_[0] ];
-        if ( $_[1] ) {
-            $param{pkgs} = { $_[1] => [ splice @_, 2 ] };
+    if ($_[0] eq 'libs') {
+        if ($_[1] && ref $_[1] && ref $_[1] eq 'ARRAY') {
+            ## backward compat mode;
+            @libs = @{ $_[1] };
         }
     }
+    @libs = @_ unless @libs;
 
-    for ( reverse @{ $param{libs} || [] } ) {
+    for ( reverse @libs ) {
         my @lib = splitdir $_;
         if (@lib && ! $lib[0]) {
             # '/abs/olute/' path
             lib->import($_);
             next;
         }
-        my $dir = catdir( shell_resolve( [ @base ], \@lib ) );
+        my $dir = File::Spec->catdir( shell_resolve( [ @base ], \@lib ) );
         unless (-d $dir) {
             ## Try the old way (<0.03)
-            $dir = catdir($Base, $_);
+            $dir = File::Spec->catdir($Base, $_);
         }
         next unless -d $dir;
         lib->import( $dir );
     }
-
-    while (my ($pkg, $args) = each %{ $param{pkgs} || {} }) {
-        eval "require $pkg";
-        if ($@) {
-            die $@;
-        }
-        $pkg->import( @{ $args || [] } );
-    }
 }
+
+=head2 base
+
+Returns the detected base (the directory where the script lives in). It's a
+string, and is the same as C<$Find::Lib::Base>.
+
+=cut
+
+sub base { return $Base }
+
+=head2 catfile
+
+A shorcut to L<File::Spec::catfile> using B<Find::Lib>'s base.
+
+=cut
+
+sub catfile {
+    my $class = shift;
+    return File::Spec->catfile($Base, @_);
+}
+
+=head2 catdir
+
+A shorcut to L<File::Spec::catdir> using B<Find::Lib>'s base.
+
+=cut
+
+sub catdir {
+    my $class = shift;
+    return File::Spec->catdir($Base, @_);
+}
+
+=head1 BACKWARD COMPATIBILITY
+
+in versions <1.0 of Find::Lib, the import arguments allowed you to specify
+a Bootstrap package. This option is now B<removed> breaking backward
+compatibility. I'm sorry about that, but that was a dumb idea of mine to
+save more typing. But it saves, like, 3 characters at the expense of
+readability. So, I'm sure I didn't break anybody, because probabaly no one
+was relying on a stupid behaviour.
+
+However, the multiple libs argument passing is kept intact: you can still
+use:
+
+    use Find::Lib libs => [ 'a', 'b', 'c' ];
+
+
+where C<libs> is a reference to a list of path to add to C<@INC>.
+
+The short forms implies that the first argument passed to import is not C<libs>
+or C<pkgs>. An example of usage is given in the SYNOPSIS section.
 
 
 =head1 SEE ALSO
 
 L<FindBin>, L<FindBin::libs>, L<lib>, L<rlib>, L<local::lib>
+L<http://blog.cyberion.net/2009/10/ive-done-something-bad-i-broke-backward-compatibility.html>
 
 =head1 AUTHOR
 
