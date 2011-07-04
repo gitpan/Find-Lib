@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Find-Lib
-version:            1.03_01
+version:            1.03
 abstract:           Helper to smartly find libs to use in the filesystem tree
 author:
     - Yann Kerherve <yannk@cpan.org>
