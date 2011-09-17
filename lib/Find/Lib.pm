@@ -17,7 +17,7 @@ Version 1.01
 
 =cut
 
-$VERSION = '1.03';
+$VERSION = '1.04';
 
 =head1 SYNOPSIS
 
@@ -98,7 +98,7 @@ its job, then Find::Lib will most probably die, saying "The script cannot be
 found". I don't know a workaround that. So be sure to load Find::Lib as soon
 as possible in your script to minimize problems (you are in control!).
 
-(some programs alter $0 to customize the diplay line of the process in
+(some programs alter $0 to customize the display line of the process in
 the system process-list (C<ps> on unix).
 
 (Note, see L<perlvar> for explanation of $0)
@@ -117,6 +117,7 @@ The paths won't be added unless the path actually exists on disk
 =cut
 
 use Carp();
+use Cwd();
 
 $Script = $Base = guess_base();
 
